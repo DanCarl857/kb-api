@@ -6,6 +6,7 @@ import tenantRoutes from "./routes/tenants.route";
 import articleRoutes from "./routes/articles.route";
 import topicRoutes from "./routes/topics.route";
 import aliasRoutes from "./routes/aliases.route";
+import duplicateRoutes from "./routes/duplicate.route";
 
 import { setupSwagger } from "./swagger";
 import logger from "./logger";
@@ -23,6 +24,7 @@ app.use("/api/v1/tenants", tenantRoutes);
 app.use("/api/v1/topics", topicRoutes);
 app.use("/api/v1/articles", articleRoutes);
 app.use("/api/v1/aliases", aliasRoutes);
+app.use("/api/v1", duplicateRoutes)
 
 setupSwagger(app);
 

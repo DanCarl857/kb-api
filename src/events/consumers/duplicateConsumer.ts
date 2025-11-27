@@ -1,6 +1,8 @@
 import { getRabbitChannel } from "../rabbitmq";
 import { QUEUES, DuplicateArticleWarningEvent } from "../eventTypes";
 import logger from "../../logger";
+import { AppDataSource } from "../../data-source";
+import { DuplicateRecord } from "../../entities/DuplicateRecord";
 
 export async function startDuplicateConsumer() {
   const channel = await getRabbitChannel();
@@ -20,6 +22,15 @@ export async function startDuplicateConsumer() {
         `[DUPLICATE WARNING] Possible duplicate detected for tenant ${event.tenantId}`,
         event
       );
+
+      const repo = AppDataSource.getRepository(DuplicateRecord);
+      await repo.save({
+        newArticleId: event.newArticleId,
+        existingArticleId: event.existingArticleId,
+        tenantId: event.tenantId,
+        reason: event.reason,
+        timestamp: event.timestamp,
+      });
       channel.ack(msg);
     },
     { noAck: false }
