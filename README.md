@@ -4,10 +4,16 @@ A scalable RESTful API for managing knowledge articles with intelligent duplicat
 
 ## Table of Contents
 
+- [Project Structure](#project-structure)
 - [Architecture Overview](#architecture-overview)
+- [Setup & Installation](#setup--installation)
+  - [Local Development Setup](#local-development-setup)
+  - [Docker Setup](#docker-setup)
+- [Running the Project](#running-the-project)
+  - [Running Locally](#running-locally)
+  - [Running with Docker](#running-with-docker)
 - [Features](#features)
 - [Technology Stack](#technology-stack)
-- [Why RabbitMQ Over a Simple Event Bus](#why-rabbitmq-over-a-simple-event-bus)
 - [Duplicate Detection Heuristics](#duplicate-detection-heuristics)
 - [Data Modeling](#data-modeling)
   - [Entity Relationships](#entity-relationships)
@@ -19,17 +25,55 @@ A scalable RESTful API for managing knowledge articles with intelligent duplicat
 - [Scalability Considerations](#scalability-considerations)
   - [Current Architecture Bottlenecks](#current-architecture-bottlenecks)
   - [Scaling for Growth](#scaling-for-growth)
-- [Project Structure](#project-structure)
-- [Setup & Installation](#setup--installation)
-  - [Local Development Setup](#local-development-setup)
-  - [Docker Setup](#docker-setup)
-- [Running the Project](#running-the-project)
-  - [Running Locally](#running-locally)
-  - [Running with Docker](#running-with-docker)
 - [API Documentation](#api-documentation)
 - [Future Work](#future-work)
 
 ---
+
+## Project Structure
+
+```
+kb-api/
+├── src/
+│   ├── controllers/          # Request handlers
+│   │   ├── article.controller.ts
+│   │   ├── duplicateController.ts
+│   │   ├── tenant.controller.ts
+│   │   ├── topic.controller.ts
+│   │   └── aliases.controller.ts
+│   ├── entities/            # TypeORM entities
+│   │   ├── KnowledgeArticle.ts
+│   │   ├── Tenant.ts
+│   │   ├── Topic.ts
+│   │   ├── Alias.ts
+│   │   └── DuplicateRecord.ts
+│   ├── events/              # Event handling
+│   │   ├── rabbitmq.ts      # RabbitMQ connection
+│   │   ├── eventTypes.ts    # Event schemas
+│   │   ├── consumers/       # Event consumers
+│   │   │   └── duplicateConsumer.ts
+│   │   └── producers/       # Event producers
+│   │       └── duplicateProducer.ts
+│   ├── routes/              # Express routes
+│   │   ├── articles.route.ts
+│   │   ├── tenants.route.ts
+│   │   ├── topics.route.ts
+│   │   ├── aliases.route.ts
+│   │   └── duplicate.route.ts
+│   ├── data-source.ts       # TypeORM configuration
+│   ├── index.ts             # API server entry point
+│   ├── duplicate-worker.ts  # Worker entry point
+│   ├── logger.ts            # Winston logger
+│   ├── swagger.ts           # Swagger setup
+│   └── swaggerSpec.ts       # API specifications
+├── Dockerfile               # Multi-stage Docker build
+├── docker-compose.yml       # Orchestration config
+├── .dockerignore           # Docker build exclusions
+├── package.json            # Dependencies & scripts
+├── tsconfig.json           # TypeScript config
+└── README.md               # This file
+```
+
 
 ## Architecture Overview
 
@@ -64,6 +108,230 @@ The Knowledge Base API follows a simple architecture with 3 main components:
 
 ---
 
+---
+
+## Setup & Installation
+
+### Prerequisites
+
+- **Node.js** 18+ and npm
+- **RabbitMQ** (for local development) OR **Docker** (recommended)
+
+---
+
+### Local Development Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd kb-api
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Start RabbitMQ** (if not using Docker)
+   ```bash
+   # macOS with Homebrew
+   brew install rabbitmq
+   brew services start rabbitmq
+
+   # Or use Docker for just RabbitMQ
+   docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management-alpine
+   ```
+
+4. **Configure environment variables** (optional)
+   ```bash
+   # Create .env file (optional)
+   echo "RABBITMQ_URL=amqp://localhost" > .env
+   echo "DATABASE_PATH=db.sqlite" >> .env
+   ```
+
+---
+
+### Docker Setup
+
+**No additional setup required!** Docker Compose handles everything.
+
+Just ensure you have:
+- **Docker** installed: [Get Docker](https://docs.docker.com/get-docker/)
+- **Docker Compose** installed: Included with Docker Desktop
+
+---
+
+## Running the Project
+
+### Running Locally
+
+#### 1. Start the API Server
+```bash
+npm run dev
+```
+
+The API will be available at:
+- **API**: http://localhost:3000
+- **Swagger Docs**: http://localhost:3000/docs
+
+#### 2. Start the Duplicate Detection Worker (in a separate terminal)
+```bash
+npm run dev:worker
+```
+
+**Expected Output:**
+```
+[WORKER] Database connected
+[WORKER] Listening for duplicate_article_warning events...
+```
+
+#### 3. Access RabbitMQ Management UI
+- **URL**: http://localhost:15672
+- **Username**: `guest`
+- **Password**: `guest`
+
+---
+
+### Running with Docker
+
+#### 1. Build and start all services
+```bash
+docker-compose up --build
+```
+
+This command:
+- Builds the Docker image for the API and worker
+- Starts RabbitMQ
+- Starts the API server
+- Starts the duplicate detection worker
+- Sets up networking between containers
+
+#### 2. Run in detached mode (background)
+```bash
+docker-compose up -d
+```
+
+#### 3. View logs
+```bash
+# All services
+docker-compose logs -f
+
+# Specific service
+docker-compose logs -f api
+docker-compose logs -f worker
+docker-compose logs -f rabbitmq
+```
+
+#### 4. Stop all services
+```bash
+docker-compose down
+```
+
+#### 5. Stop and remove volumes (reset database)
+```bash
+docker-compose down -v
+```
+
+---
+
+### Service URLs (Docker)
+
+When running with Docker:
+- **API**: http://localhost:3000
+- **Swagger Docs**: http://localhost:3000/docs
+- **RabbitMQ Management**: http://localhost:15672 (guest/guest)
+
+---
+
+### Building for Production
+
+#### Compile TypeScript
+```bash
+npm run build
+```
+
+#### Start production server
+```bash
+npm start              # Start API
+npm run start:worker   # Start worker (in separate terminal)
+```
+
+---
+
+## API Documentation
+
+### Interactive Swagger UI
+
+Visit http://localhost:3000/docs for interactive API documentation.
+
+### Core Endpoints
+
+#### Tenants
+- `POST /api/v1/tenants` - Create a tenant
+- `GET /api/v1/tenants` - List all tenants
+- `GET /api/v1/tenants/:id` - Get tenant by ID
+- `PUT /api/v1/tenants/:id` - Update tenant
+- `DELETE /api/v1/tenants/:id` - Delete tenant
+
+#### Topics
+- `POST /api/v1/topics` - Create a topic
+- `GET /api/v1/topics` - List topics
+- `GET /api/v1/topics/:id` - Get topic by ID
+- `PUT /api/v1/topics/:id` - Update topic
+- `DELETE /api/v1/topics/:id` - Delete topic
+
+#### Articles
+- `POST /api/v1/articles` - Create an article
+- `GET /api/v1/articles` - List articles (supports filtering by `q`, `tenantId`, `year`)
+- `GET /api/v1/articles/:id` - Get article by ID
+- `PUT /api/v1/articles/:id` - Update article
+- `DELETE /api/v1/articles/:id` - Delete article
+
+#### Aliases
+- `POST /api/v1/aliases` - Create an alias
+- `GET /api/v1/aliases` - List aliases
+- `DELETE /api/v1/aliases/:id` - Delete alias
+
+#### Duplicates
+- `GET /api/v1/duplicates/:tenantId` - Get potential duplicates for a tenant
+
+---
+
+### Example: Creating an Article
+
+```bash
+curl -X POST http://localhost:3000/api/v1/articles \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "RESTful API Best Practices",
+    "body": "A comprehensive guide to designing REST APIs...",
+    "publishedYear": 2024,
+    "tenantId": 1,
+    "aliases": ["REST API Guide", "API Design Patterns"],
+    "topicIds": [1, 2]
+  }'
+```
+
+**Response:**
+```json
+{
+  "id": 1,
+  "title": "RESTful API Best Practices",
+  "body": "A comprehensive guide to designing REST APIs...",
+  "publishedYear": 2024,
+  "tenant": { "id": 1, "name": "Acme Corp" },
+  "topics": [...],
+  "aliases": [
+    { "id": 1, "text": "REST API Guide" },
+    { "id": 2, "text": "API Design Patterns" }
+  ]
+}
+```
+
+If a duplicate is detected, an event is sent to RabbitMQ and logged by the worker.
+
+---
+
 ## Features
 
 - **Multi-tenant support**: Isolate knowledge bases by tenant
@@ -89,51 +357,6 @@ The Knowledge Base API follows a simple architecture with 3 main components:
 - **API Docs**: Swagger UI + swagger-jsdoc
 - **Logging**: Winston
 - **Containerization**: Docker & Docker Compose
-
----
-
-## Why RabbitMQ Over a Simple Event Bus
-
-### The Case for RabbitMQ
-
-While a simple in-memory event bus (e.g., Node.js `EventEmitter`) might seem sufficient for small applications, **RabbitMQ** provides critical advantages for production-grade systems:
-
-#### 1. **Persistence & Durability**
-- **RabbitMQ**: Messages are persisted to disk, surviving server crashes and restarts
-- **Simple Event Bus**: Events are lost if the process crashes or restarts
-- **Impact**: Critical for duplicate detection events that must be processed reliably
-
-#### 2. **Scalability**
-- **RabbitMQ**: Multiple worker instances can consume from the same queue (competing consumers pattern)
-- **Simple Event Bus**: Limited to single-process, cannot scale horizontally
-- **Impact**: As the knowledge base grows, we can add more worker instances to handle load
-
-#### 3. **Fault Tolerance**
-- **RabbitMQ**: Acknowledgment mechanism ensures messages aren't lost if processing fails
-- **Simple Event Bus**: No guarantee of delivery or processing
-- **Impact**: Duplicate warnings are guaranteed to be logged even if worker temporarily fails
-
-#### 4. **Decoupling & Service Independence**
-- **RabbitMQ**: API and worker can run as separate processes/containers, restart independently
-- **Simple Event Bus**: Tight coupling within a single process
-- **Impact**: Worker can be restarted for maintenance without affecting API availability
-
-#### 5. **Observability**
-- **RabbitMQ**: Built-in management UI to monitor queues, message rates, and consumer status
-- **Simple Event Bus**: No visibility into event flow
-- **Impact**: Easy debugging and monitoring in production
-
-#### 6. **Future-Proofing**
-- **RabbitMQ**: Ready for microservices architecture, multiple consumers, priority queues, dead-letter queues
-- **Simple Event Bus**: Requires complete rewrite to scale beyond single process
-- **Impact**: Architecture supports future growth without major refactoring
-
-### Trade-offs
-
-**Complexity**: RabbitMQ adds operational overhead (running/monitoring another service)
-**Justification**: For a knowledge base system where data integrity and scalability matter, the benefits far outweigh the complexity cost.
-
----
 
 ## Duplicate Detection Heuristics
 
@@ -552,7 +775,6 @@ export async function startDuplicateConsumer() {
 **Rationale**:
 - Offloads DB writes from API request path
 - Creates audit trail
-- Enables batch analysis later
 
 ---
 
@@ -615,14 +837,6 @@ CREATE INDEX idx_alias_text ON alias(text);
 - Reduces full table scans
 
 **b) Migrate to PostgreSQL**
-```typescript
-// Supports concurrent writes, better query optimizer
-type: "postgres",
-host: process.env.DB_HOST,
-port: 5432,
-username: process.env.DB_USER,
-password: process.env.DB_PASSWORD,
-```
 - Connection pooling (10-50 connections)
 - No database-level write locks
 - Advanced full-text search with `tsvector`
@@ -706,27 +920,7 @@ app.use('/api/v1', limiter);
 #### 3. **Adding Multi-Language Content**
 
 **Problem**: Current schema doesn't support translations
-
 **Solution 1: Separate Translation Table**
-```typescript
-@Entity()
-class ArticleTranslation {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @ManyToOne(() => KnowledgeArticle)
-  article: KnowledgeArticle;
-
-  @Column()
-  locale: string; // 'en-US', 'es-ES', 'fr-FR'
-
-  @Column()
-  title: string;
-
-  @Column("text")
-  body: string;
-}
-```
 
 **Duplicate Detection Impact**:
 - Check duplicates within same locale
@@ -780,65 +974,7 @@ await articleRepo.save(article);
 
 ---
 
-#### 5. **Adding Versioning**
-
-**Problem**: No history of article changes; can't rollback to previous versions
-
-**Solution 1: Separate Version Table**
-```typescript
-@Entity()
-class ArticleVersion {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @ManyToOne(() => KnowledgeArticle)
-  article: KnowledgeArticle;
-
-  @Column()
-  version: number;
-
-  @Column()
-  title: string;
-
-  @Column("text")
-  body: string;
-
-  @Column()
-  createdAt: Date;
-
-  @Column()
-  createdBy: string;
-}
-```
-
-**Update Logic**:
-```typescript
-// On article update, save current state as version
-const version = new ArticleVersion();
-version.article = article;
-version.version = article.currentVersion;
-version.title = article.title;
-version.body = article.body;
-await versionRepo.save(version);
-
-// Then update article
-article.title = newTitle;
-article.currentVersion++;
-await articleRepo.save(article);
-```
-
-**Duplicate Detection Impact**:
-- Check duplicates against all versions or just current
-- Event: `{ reason: "title_match_version_5" }`
-
-**Solution 2: Event Sourcing**
-- Store all changes as events
-- Rebuild current state by replaying events
-- More complex but enables complete audit trail
-
----
-
-#### 6. **Adding More Event Types**
+#### 5. **Adding More Event Types**
 
 **Current**: Only `duplicate_article_warning` event
 
@@ -925,275 +1061,6 @@ await channel.assertQueue('duplicate-warnings', {
 - Handles: 100K req/min
 
 ---
-
-## Project Structure
-
-```
-kb-api/
-├── src/
-│   ├── controllers/          # Request handlers
-│   │   ├── article.controller.ts
-│   │   ├── duplicateController.ts
-│   │   ├── tenant.controller.ts
-│   │   ├── topic.controller.ts
-│   │   └── aliases.controller.ts
-│   ├── entities/            # TypeORM entities
-│   │   ├── KnowledgeArticle.ts
-│   │   ├── Tenant.ts
-│   │   ├── Topic.ts
-│   │   ├── Alias.ts
-│   │   └── DuplicateRecord.ts
-│   ├── events/              # Event handling
-│   │   ├── rabbitmq.ts      # RabbitMQ connection
-│   │   ├── eventTypes.ts    # Event schemas
-│   │   ├── consumers/       # Event consumers
-│   │   │   └── duplicateConsumer.ts
-│   │   └── producers/       # Event producers
-│   │       └── duplicateProducer.ts
-│   ├── routes/              # Express routes
-│   │   ├── articles.route.ts
-│   │   ├── tenants.route.ts
-│   │   ├── topics.route.ts
-│   │   ├── aliases.route.ts
-│   │   └── duplicate.route.ts
-│   ├── data-source.ts       # TypeORM configuration
-│   ├── index.ts             # API server entry point
-│   ├── duplicate-worker.ts  # Worker entry point
-│   ├── logger.ts            # Winston logger
-│   ├── swagger.ts           # Swagger setup
-│   └── swaggerSpec.ts       # API specifications
-├── Dockerfile               # Multi-stage Docker build
-├── docker-compose.yml       # Orchestration config
-├── .dockerignore           # Docker build exclusions
-├── package.json            # Dependencies & scripts
-├── tsconfig.json           # TypeScript config
-└── README.md               # This file
-```
-
----
-
-## Setup & Installation
-
-### Prerequisites
-
-- **Node.js** 18+ and npm
-- **RabbitMQ** (for local development) OR **Docker** (recommended)
-
----
-
-### Local Development Setup
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd kb-api
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Start RabbitMQ** (if not using Docker)
-   ```bash
-   # macOS with Homebrew
-   brew install rabbitmq
-   brew services start rabbitmq
-
-   # Or use Docker for just RabbitMQ
-   docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management-alpine
-   ```
-
-4. **Configure environment variables** (optional)
-   ```bash
-   # Create .env file (optional)
-   echo "RABBITMQ_URL=amqp://localhost" > .env
-   echo "DATABASE_PATH=db.sqlite" >> .env
-   ```
-
----
-
-### Docker Setup
-
-**No additional setup required!** Docker Compose handles everything.
-
-Just ensure you have:
-- **Docker** installed: [Get Docker](https://docs.docker.com/get-docker/)
-- **Docker Compose** installed: Included with Docker Desktop
-
----
-
-## Running the Project
-
-### Running Locally
-
-#### 1. Start the API Server
-```bash
-npm run dev
-```
-
-The API will be available at:
-- **API**: http://localhost:3000
-- **Swagger Docs**: http://localhost:3000/docs
-
-#### 2. Start the Duplicate Detection Worker (in a separate terminal)
-```bash
-npm run dev:worker
-```
-
-**Expected Output:**
-```
-[WORKER] Database connected
-[WORKER] Listening for duplicate_article_warning events...
-```
-
-#### 3. Access RabbitMQ Management UI
-- **URL**: http://localhost:15672
-- **Username**: `guest`
-- **Password**: `guest`
-
----
-
-### Running with Docker
-
-#### 1. Build and start all services
-```bash
-docker-compose up --build
-```
-
-This command:
-- Builds the Docker image for the API and worker
-- Starts RabbitMQ
-- Starts the API server
-- Starts the duplicate detection worker
-- Sets up networking between containers
-
-#### 2. Run in detached mode (background)
-```bash
-docker-compose up -d
-```
-
-#### 3. View logs
-```bash
-# All services
-docker-compose logs -f
-
-# Specific service
-docker-compose logs -f api
-docker-compose logs -f worker
-docker-compose logs -f rabbitmq
-```
-
-#### 4. Stop all services
-```bash
-docker-compose down
-```
-
-#### 5. Stop and remove volumes (reset database)
-```bash
-docker-compose down -v
-```
-
----
-
-### Service URLs (Docker)
-
-When running with Docker:
-- **API**: http://localhost:3000
-- **Swagger Docs**: http://localhost:3000/docs
-- **RabbitMQ Management**: http://localhost:15672 (guest/guest)
-
----
-
-### Building for Production
-
-#### Compile TypeScript
-```bash
-npm run build
-```
-
-#### Start production server
-```bash
-npm start              # Start API
-npm run start:worker   # Start worker (in separate terminal)
-```
-
----
-
-## API Documentation
-
-### Interactive Swagger UI
-
-Visit http://localhost:3000/docs for interactive API documentation.
-
-### Core Endpoints
-
-#### Tenants
-- `POST /api/v1/tenants` - Create a tenant
-- `GET /api/v1/tenants` - List all tenants
-- `GET /api/v1/tenants/:id` - Get tenant by ID
-- `PUT /api/v1/tenants/:id` - Update tenant
-- `DELETE /api/v1/tenants/:id` - Delete tenant
-
-#### Topics
-- `POST /api/v1/topics` - Create a topic
-- `GET /api/v1/topics` - List topics
-- `GET /api/v1/topics/:id` - Get topic by ID
-- `PUT /api/v1/topics/:id` - Update topic
-- `DELETE /api/v1/topics/:id` - Delete topic
-
-#### Articles
-- `POST /api/v1/articles` - Create an article
-- `GET /api/v1/articles` - List articles (supports filtering by `q`, `tenantId`, `year`)
-- `GET /api/v1/articles/:id` - Get article by ID
-- `PUT /api/v1/articles/:id` - Update article
-- `DELETE /api/v1/articles/:id` - Delete article
-
-#### Aliases
-- `POST /api/v1/aliases` - Create an alias
-- `GET /api/v1/aliases` - List aliases
-- `DELETE /api/v1/aliases/:id` - Delete alias
-
-#### Duplicates
-- `GET /api/v1/duplicates/:tenantId` - Get potential duplicates for a tenant
-
----
-
-### Example: Creating an Article
-
-```bash
-curl -X POST http://localhost:3000/api/v1/articles \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "RESTful API Best Practices",
-    "body": "A comprehensive guide to designing REST APIs...",
-    "publishedYear": 2024,
-    "tenantId": 1,
-    "aliases": ["REST API Guide", "API Design Patterns"],
-    "topicIds": [1, 2]
-  }'
-```
-
-**Response:**
-```json
-{
-  "id": 1,
-  "title": "RESTful API Best Practices",
-  "body": "A comprehensive guide to designing REST APIs...",
-  "publishedYear": 2024,
-  "tenant": { "id": 1, "name": "Acme Corp" },
-  "topics": [...],
-  "aliases": [
-    { "id": 1, "text": "REST API Guide" },
-    { "id": 2, "text": "API Design Patterns" }
-  ]
-}
-```
-
-If a duplicate is detected, an event is sent to RabbitMQ and logged by the worker.
-
----
-
 ## Future Work
 
 ### Enhancements
