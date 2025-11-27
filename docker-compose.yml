@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: kb-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"  # RabbitMQ Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kb-network
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kb-api
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+    volumes:
+      - ./data:/app/data  # Persist SQLite database
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - kb-network
+    command: ["node", "dist/index.js"]
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kb-worker
+    environment:
+      - NODE_ENV=production
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+    volumes:
+      - ./data:/app/data  # Share SQLite database with API
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      api:
+        condition: service_started
+    networks:
+      - kb-network
+    command: ["node", "dist/duplicate-worker.js"]
+
+networks:
+  kb-network:
+    driver: bridge
+
+volumes:
+  data:
