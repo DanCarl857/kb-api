@@ -5,11 +5,11 @@ import { Topic } from "../entities/Topic";
 import logger from "../logger";
 import { AppDataSource } from "../data-source";
 import { Alias } from "../entities/Alias";
+import { emitDuplicateWarning } from "../events/producers/duplicateProducer";
 
 const articleRepo = AppDataSource.getRepository(Article);
 const tenantRepo = AppDataSource.getRepository(Tenant);
 const topicRepo = AppDataSource.getRepository(Topic);
-const aliasRepo = AppDataSource.getRepository(Alias);
 
 export const createArticle = async (req: Request, res: Response) => {
   try {
@@ -20,6 +20,35 @@ export const createArticle = async (req: Request, res: Response) => {
 
     const tenant = await tenantRepo.findOneBy({ id: tenantId });
     if (!tenant) return res.status(404).json({ error: "Tenant not found" });
+
+    const existingArticles = await articleRepo.find({
+      where: { tenant: { id: tenantId } },
+      relations: ["aliases"],
+    })
+
+    for (const existing of existingArticles) {
+      if (existing.title.toLowerCase() === title.toLowerCase()) {
+        await emitDuplicateWarning({
+          newArticleId: 0,
+          existingArticleId: existing.id,
+          tenantId,
+          reason: "title_match",
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      for (const alias of existing.aliases) {
+        if (alias.text.toLowerCase() === title.toLowerCase()) {
+          await emitDuplicateWarning({
+            newArticleId: 0,
+            existingArticleId: existing.id,
+            tenantId,
+            reason: "alias_match",
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+    }
 
     const article = new Article();
     article.title = title;
